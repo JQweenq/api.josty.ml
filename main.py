@@ -1,16 +1,22 @@
-import datetime
+from flask import Flask
+from flask_restful import Resource, reqparse, Api
+from config import *
+from datetime import datetime, timedelta
 from urllib.parse import urlparse, parse_qs
 import requests
 
+app: Flask = Flask(__name__)
+rest: Api = Api(app)
 
 class Dnevnik:
-
-    def __init__(self, login: str = None, password: str = None, token: str = None):
+    def __init__(self, login: str = None, password: str = None, token: str = None, group: int = None):
         self.session = requests.Session()
         self.host = BASE_URL
         self.token = token
+        self.group = group
         if token is None:
             self.token = self.get_token(login, password)
+            print(self.token)
         self.session.headers = {"Access-Token": self.token}
 
     def get_token(self, login, password):
@@ -105,9 +111,43 @@ class Dnevnik:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.session.close()
 
+    def get_timetable(self, start, end):
+        return self.get(f"edu-groups/{self.group}/lessons/{start}/{end}")
 
+dnevnik: Dnevnik = Dnevnik(LOGIN, PASSWORD, group=GROUP)
 
+getParser: reqparse.RequestParser = reqparse.RequestParser()
 
-def setup_extensions(app: Flask) -> None:
-    pass
-    # login.init_app(app)
+getParser.add_argument('start', type=int)
+getParser.add_argument('end', type=int)
+
+class Timetable(Resource):
+    @staticmethod
+    def get():
+        args: dict = getParser.parse_args()
+
+        if args['start'] is not None and args['end'] is not None:
+            lessons = dnevnik.get_timetable(args['start'], args['end'])
+        else:
+            lessons = dnevnik.get_timetable(datetime.now() - timedelta(days=2),
+                                            datetime.now() + timedelta(days=2))
+        last_date = None
+        dates: list = []
+        date: list = []
+
+        for lesson in lessons:
+            current_date: str = lesson['date']
+            if last_date is None or current_date == last_date:
+                last_date = lesson['date']
+                date.append({'date': last_date, 'number': lesson['number'], 'lesson': lesson['subject']['name']})
+            else:
+                dates.append(date)
+                date = []
+                date.append({'date': last_date, 'number': lesson['number'], 'lesson': lesson['subject']['name']})
+                last_date = current_date
+        return dates
+
+rest.add_resource(Timetable, '/')
+
+if __name__ == '__main__':
+    app.run()
