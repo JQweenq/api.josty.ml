@@ -2,7 +2,7 @@ import os
 
 LOGIN = os.getenv('LOGIN')
 PASSWORD = os.getenv('PASSWORD')
-GROUP = 1852332998339058391
+GROUP = os.getenv('GROUP')
 
 BASE_URL = "https://api.dnevnik.ru/v2/"
 LOGIN_URL = "https://login.dnevnik.ru/login/"
